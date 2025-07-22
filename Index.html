@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mishra DMS Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f1f3f5;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .hidden { display: none; }
+    header {
+      background: #0069d9;
+      color: #fff;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    #dashboardArea {
+      display: flex;
+      flex-grow: 1;
+      height: 100%;
+    }
+    .sidebar {
+      width: 240px;
+      background: #343a40;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar h2 {
+      text-align: center;
+      margin: 1rem 0;
+      font-size: 18px;
+    }
+    .sidebar a {
+      padding: 1rem;
+      color: white;
+      text-decoration: none;
+      transition: background 0.3s;
+      cursor: pointer;
+      border-bottom: 1px solid #495057;
+    }
+    .sidebar a:hover {
+      background: #495057;
+    }
+    .main {
+      flex-grow: 1;
+      padding: 2rem;
+      overflow-y: auto;
+      background: #f8f9fa;
+    }
+    .section { display: none; }
+    .section.active { display: block; }
+    .card {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 2rem;
+    }
+    input[type="text"],
+    input[type="password"],
+    input[type="file"],
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 1rem;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      margin-top: 1.5rem;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    footer {
+      background: #dee2e6;
+      text-align: center;
+      padding: 0.75rem;
+      font-size: 14px;
+    }
+    ul { padding-left: 20px; }
+    li { margin: 5px 0; }
+  </style>
+</head>
+<body>
+
+<!-- Login Screen -->
+<div id="loginScreen" class="main" style="max-width: 400px; margin: auto; padding-top: 80px;">
+  <div class="card" id="loginCard">
+    <h2 style="text-align: center;">Login to DMS</h2>
+    <input type="text" id="loginUsername" placeholder="Enter username"/>
+    <input type="password" id="loginPassword" placeholder="Enter password"/>
+    <button onclick="login()">Login</button>
+    <p id="loginMsg" style="color: red; text-align: center;"></p>
+  </div>
+</div>
+
+<!-- Dashboard -->
+<div id="dashboardContainer" class="hidden" style="flex-direction: column; height: 100%;">
+  <header>
+    <h1>Mishra Software Solution - DMS</h1>
+    <span id="clock"></span>
+  </header>
+
+  <div id="dashboardArea">
+    <div class="sidebar">
+      <h2>Navigation</h2>
+      <a onclick="showSection('home')">Dashboard</a>
+      <a onclick="showSection('upload')">Upload Files</a>
+      <a onclick="showSection('search')">Search</a>
+      <a onclick="showSection('admin')">Admin Panel</a>
+      <a onclick="logout()">Logout</a>
+    </div>
+
+    <div class="main">
+      <div id="section-home" class="section active card">
+        <h3>Dashboard Overview</h3>
+        <p>Total Files: <strong id="fileCount">0</strong></p>
+        <p>Last Upload: <strong id="lastUpload">N/A</strong></p>
+      </div>
+
+      <div id="section-upload" class="section card">
+        <h3>Upload New Files</h3>
+        <input type="file" id="fileInput" multiple />
+        <button onclick="uploadFiles()">Upload</button>
+      </div>
+
+      <div id="section-search" class="section card">
+        <h3>Uploaded Files</h3>
+        <ul id="fileList"></ul>
+        <button onclick="deleteSelected()">Delete Selected</button>
+      </div>
+
+      <div id="section-admin" class="section card">
+        <h3>👑 Admin Panel - Users Management</h3>
+
+        <div style="margin-bottom: 1rem;">
+          <input type="text" id="newUsername" placeholder="New Username"/>
+          <input type="password" id="newPassword" placeholder="New Password"/>
+          <button onclick="createUser()">Add User</button>
+        </div>
+
+        <ul id="userList"></ul>
+      </div>
+    </div>
+  </div>
+
+  <footer>&copy; 2025 Mishra Software Solution. All rights reserved.</footer>
+</div>
+
+<script>
+  const API = 'https://YOUR_BACKEND_URL_HERE/api'; // <-- Update with your actual backend URL
+  let currentFiles = [];
+
+  function login() {
+    const username = document.getElementById("loginUsername").value;
+    const password = document.getElementById("loginPassword").value;
+    fetch(${API}/login, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    })
+    .then(async res => {
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById('loginMsg').textContent = data.message;
+        return;
+      }
+
+      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("dashboardContainer").classList.remove("hidden");
+
+      loadFiles();
+      loadUserList();
+      updateClock();
+    })
+    .catch(() => {
+      document.getElementById("loginMsg").textContent = "Login failed.";
+    });
+  }
+
+  function logout() {
+    document.getElementById("dashboardContainer").classList.add("hidden");
+    document.getElementById("loginScreen").classList.remove("hidden");
+  }
+
+  function showSection(name) {
+    document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+    document.getElementById(section-${name}).classList.add("active");
+  }
+
+  function uploadFiles() {
+    const input = document.getElementById('fileInput');
+    const files = input.files;
+    if (!files.length) return alert('Please select files.');
+
+    const formData = new FormData();
+    for (let file of files) formData.append('files', file);
+
+    fetch(${API}/upload, { method: 'POST', body: formData })
+      .then(() => {
+        input.value = '';
+        loadFiles();
+      });
+  }
+
+  function loadFiles() {
+    fetch(${API}/files)
+      .then(res => res.json())
+      .then(files => {
+        currentFiles = files;
+        document.getElementById("fileCount").textContent = files.length;
+        document.getElementById("lastUpload").textContent = files.length ? files.at(-1).time : "N/A";
+
+        const list = document.getElementById("fileList");
+        list.innerHTML = "";
+        files.forEach(file => {
+          const li = document.createElement("li");
+          const fileSize = (file.size / 1024).toFixed(2);
+          li.innerHTML = `
+            <input type="checkbox" data-file="${file.path}">
+            ${file.name} (${fileSize} KB, ${file.time})
+            <a href="${API.replace('/api','')}/uploads/${file.path}" download>[Download]</a>
+          `;
+          list.appendChild(li);
+        });
+      });
+  }
+
+  function deleteSelected() {
+    const selected = Array.from(document.querySelectorAll('#fileList input:checked'));
+    if (!selected.length) return alert('Select files to delete.');
+    if (!confirm('Delete selected files?')) return;
+
+    Promise.all(selected.map(cb => {
+      const filename = cb.dataset.file;
+      return fetch(${API}/delete/${filename}, { method: 'DELETE' });
+    })).then(loadFiles);
+  }
+
+  function loadUserList() {
+    fetch(${API}/users)
+      .then(res => res.json())
+      .then(users => {
+        const list = document.getElementById('userList');
+        list.innerHTML = '';
+        users.forEach(u => {
+          const li = document.createElement('li');
+          li.innerHTML = `
+            ID: ${u.id} | Username: ${u.username}
+            <button onclick="deleteUser('${u.username}')" style="margin-left: 1rem;">Delete</button>
+          `;
+          list.appendChild(li);
+        });
+      });
+  }
+
+  function createUser() {
+    const username = document.getElementById('newUsername').value;
+    const password = document.getElementById('newPassword').value;
+    if (!username || !password) return alert('Enter username and password');
+
+    fetch(${API}/register, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    })
+    .then(res => res.json())
+    .then(data => {
+      alert(data.message || 'User added');
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newPassword').value = '';
+      loadUserList();
+    });
+  }
+
+  function deleteUser(username) {
+    if (!confirm(Delete user "${username}"?)) return;
+    fetch(${API}/users/${username}, { method: 'DELETE' })
+      .then(() => loadUserList());
+  }
+
+  function updateClock() {
+    document.getElementById("clock").textContent = new Date().toLocaleString();
+    setInterval(() => {
+      document.getElementById("clock").textContent = new Date().toLocaleString();
+    }, 1000);
+  }
+</script>
+
+</body>
+</html>
